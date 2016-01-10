@@ -10,8 +10,8 @@ public class FacebookImage {
     private String thumbnailUrl;
     private String createdTime;
     private String fromUserName;
-    private String width;
-    private String height;
+    private int width;
+    private int height;
     public String getId() {
         return id;
     }
@@ -60,19 +60,20 @@ public class FacebookImage {
         this.fromUserName = fromUserName;
     }
 
-    public String getWidth() {
+
+    public int getWidth() {
         return width;
     }
 
-    public void setWidth(String width) {
+    public void setWidth(int width) {
         this.width = width;
     }
 
-    public String getHeight() {
+    public int getHeight() {
         return height;
     }
 
-    public void setHeight(String height) {
+    public void setHeight(int height) {
         this.height = height;
     }
 }

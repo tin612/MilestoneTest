@@ -53,7 +53,7 @@ import butterknife.Bind;
 import butterknife.ButterKnife;
 
 
-public class MainActivity extends AppCompatActivity implements SwipeRefreshLayout.OnRefreshListener {
+public class BookMark extends AppCompatActivity implements SwipeRefreshLayout.OnRefreshListener {
 
     public static final String TYPE_UPLOADED = "uploaded";
     public static final String TYPE_TAGGED = "tagged";
@@ -78,12 +78,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         ButterKnife.bind(this);
         swipeRefreshLayout.setOnRefreshListener(this);
         rvPhotos.setLayoutManager(new LinearLayoutManager(this));
-        floatingActionButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                openCameraForImage();
-            }
-        });
+
 
         getUserPhotos(TYPE_UPLOADED, null);
         gson = new GsonBuilder()
@@ -91,109 +86,12 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
                 .registerTypeAdapter(FacebookPhotoResponse.class, new FacebookPhotoResponseDeserializer())
                 .create();
     }
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu items for use in the action bar
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.menu, menu);
-        return super.onCreateOptionsMenu(menu);
-    }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle presses on the action bar items
-        switch (item.getItemId()) {
-            case R.id.action_bookmark:
-                Intent book = new Intent(MainActivity.this,BookMark.class);
-
-                startActivity(book);
-                return true;
-            case R.id.action_signout:
-                LoginManager.getInstance().logOut();
-                Intent splash = new Intent(MainActivity.this,SplashActivity.class);
-                startActivity(splash);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
-        }
-    }
     @Override
     public void onRefresh() {
         getUserPhotos(TYPE_UPLOADED, null);
     }
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (REQUEST_IMAGE == requestCode && resultCode == RESULT_OK) {
-            Bitmap bitmapData = data.getParcelableExtra("data");
-            if (bitmapData != null) {
-                uploadPhotoToFacebook(bitmapData);
-            }
-        } else {
-            callbackManager.onActivityResult(requestCode, resultCode, data);
-        }
-    }
 
-    private void openCameraForImage() {
-        if (!permission.checkPermissionForCamera()) {
-            permission.requestPermissionForCamera();
-        }
-        else {
-            if (!permission.checkPermissionForExternalStorage())
-                permission.requestPermissionForExternalStorage();
-            else {
-                Intent openCameraForImageIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                startActivityForResult(openCameraForImageIntent, REQUEST_IMAGE);
-            }
-        }
-    }
-
-    private void uploadPhotoToFacebook(final Bitmap imageBitmap) {
-        AccessToken currentAccessToken = AccessToken.getCurrentAccessToken();
-        if (currentAccessToken.getPermissions().contains(PUBLISH_ACTIONS_PERMISSION)) {
-            doUploadPhotoToFacebook(imageBitmap, currentAccessToken);
-        } else {
-            callbackManager = CallbackManager.Factory.create();
-            LoginManager loginManager = LoginManager.getInstance();
-            loginManager.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
-                @Override
-                public void onSuccess(LoginResult loginResult) {
-                    if (loginResult.getRecentlyGrantedPermissions().contains(PUBLISH_ACTIONS_PERMISSION)) {
-                        doUploadPhotoToFacebook(imageBitmap, loginResult.getAccessToken());
-                    }
-                }
-
-                @Override
-                public void onCancel() {
-
-                }
-
-                @Override
-                public void onError(FacebookException error) {
-
-                }
-            });
-            loginManager.logInWithPublishPermissions(this, Collections.singletonList(PUBLISH_ACTIONS_PERMISSION));
-
-        }
-    }
-
-    private void doUploadPhotoToFacebook(Bitmap imageFile, AccessToken currentAccessToken) {
-        GraphRequest graphRequest = GraphRequest
-                .newUploadPhotoRequest(currentAccessToken, "me/photos", imageFile,
-                        "Upload from hasBrain Milestone test", null, new GraphRequest.Callback() {
-                            @Override
-                            public void onCompleted(GraphResponse response) {
-                                if (response.getError() != null) {
-                                    Toast.makeText(MainActivity.this, "Image upload error " + response.getError().getErrorMessage(), Toast.LENGTH_LONG).show();
-                                } else {
-                                    Toast.makeText(MainActivity.this, "Upload image success", Toast.LENGTH_LONG).show();
-                                    getUserPhotos(TYPE_UPLOADED, null);
-                                }
-                            }
-                        });
-        graphRequest.executeAsync();
-    }
 
     private void getUserPhotos(@PHOTO_TYPE String photoType, final String after) {
         AccessToken accessToken = AccessToken.getCurrentAccessToken();
@@ -272,7 +170,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         private List<FacebookImage> facebookImages;
 
         public FacebookImageAdapter(LayoutInflater layoutInflater, Picasso picasso,
-                List<FacebookImage> facebookImages) {
+                                    List<FacebookImage> facebookImages) {
             this.layoutInflater = layoutInflater;
             this.picasso = picasso;
             this.facebookImages = facebookImages;
