@@ -28,6 +28,8 @@ public class SplashActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
         ButterKnife.bind(this);
+
+        //TODO: Bug 1
         if (AccessToken.getCurrentAccessToken() != null) {
             showProgress();
         }

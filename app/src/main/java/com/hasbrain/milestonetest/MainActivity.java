@@ -20,10 +20,15 @@ import com.hasbrain.milestonetest.model.converter.FacebookPhotoResponseDeseriali
 import com.squareup.picasso.Picasso;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.support.annotation.StringDef;
 import android.support.design.widget.FloatingActionButton;
@@ -37,10 +42,14 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -48,12 +57,13 @@ import butterknife.Bind;
 import butterknife.ButterKnife;
 
 
-public class MainActivity extends AppCompatActivity implements SwipeRefreshLayout.OnRefreshListener {
+public class MainActivity extends AppCompatActivity {
 
     public static final String TYPE_UPLOADED = "uploaded";
     public static final String TYPE_TAGGED = "tagged";
     public static final String PUBLISH_ACTIONS_PERMISSION = "publish_actions";
     private static final int REQUEST_IMAGE = 0x1;
+    private static final String TAG = "MainActivity";
     @Bind(R.id.rv_photos)
     RecyclerView rvPhotos;
     @Bind(R.id.swipe_refresh_layout)
@@ -62,15 +72,28 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     FloatingActionButton floatingActionButton;
     private Gson gson;
     private CallbackManager callbackManager;
+    private FacebookPhotoResponse facebookPhotoResponse;
     MarshMallowPermission permission = new MarshMallowPermission(this);
+    private int visibleItemCount;
+    private int totalItemCount;
+    private int fistVisibleItem;
+    private boolean loading = true;
+    private List<FacebookImage> list = new ArrayList<>();
+    private FacebookImageAdapter adapter;
+    private LinearLayoutManager linearLayoutManager;
+    private String strAfter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setTitle("Your facebook photos");
         ButterKnife.bind(this);
-        swipeRefreshLayout.setOnRefreshListener(this);
-        rvPhotos.setLayoutManager(new LinearLayoutManager(this));
+        rvPhotos.setHasFixedSize(true);
+        linearLayoutManager = new LinearLayoutManager(this);
+        rvPhotos.setLayoutManager(linearLayoutManager);
+        scroll(linearLayoutManager);
+        swipeRefreshLayout.setEnabled(false);
         floatingActionButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -85,27 +108,92 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     }
 
     @Override
-    public void onRefresh() {
-        getUserPhotos(TYPE_UPLOADED, null);
-    }
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (REQUEST_IMAGE == requestCode && resultCode == RESULT_OK) {
             Bitmap bitmapData = data.getParcelableExtra("data");
             if (bitmapData != null) {
+                Uri tempUri = getImageUri(MainActivity.this, bitmapData);
+                String res = getRealPathFromUri(tempUri);
+                bitmapData = decodeSampleBitmapFromFile(res);
                 uploadPhotoToFacebook(bitmapData);
             }
         } else {
-            callbackManager.onActivityResult(requestCode, resultCode, data);
+            if (callbackManager != null) {
+                callbackManager.onActivityResult(requestCode, resultCode, data);
+            }
+
         }
+    }
+
+    // TODO: decode Bitmap from File
+    public Bitmap decodeSampleBitmapFromFile(String res) {
+        // The first decode with inJustDecodeBounds = true to check dimensions
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(res, options);
+
+        options.inSampleSize = calculateInSampleSize(options, 500, 500);
+        options.inScaled = false;
+        options.inDither = false;
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+
+        // Decode bitmap with inSampleSize set
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(res, options);
+    }
+
+    public static int calculateInSampleSize(
+            BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        // Raw height and width of image
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+
+        Log.d(TAG, "calculateInSampleSize: " + height + width);
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) > reqHeight
+                    && (halfWidth / inSampleSize) > reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+
+        return inSampleSize;
+    }
+
+    // TODO: Get the actual Path
+    private String getRealPathFromUri(Uri tempUri) {
+        String result = null;
+        Cursor cursor = getContentResolver().query(tempUri, null, null, null, null);
+        if (cursor != null) {
+            cursor.moveToFirst();
+            int idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA);
+            result = cursor.getString(idx);
+            cursor.close();
+        }
+        return result;
+    }
+
+    // TODO: Get the Uri from the Bitmap
+    private Uri getImageUri(Context applicationContext, Bitmap thumbnail) {
+//        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+//        thumbnail.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+        String path = MediaStore.Images.Media.insertImage(applicationContext.getContentResolver(), thumbnail, "Title", null);
+
+        return Uri.parse(path);
     }
 
     private void openCameraForImage() {
         if (!permission.checkPermissionForCamera()) {
             permission.requestPermissionForCamera();
-        }
-        else {
+        } else {
             if (!permission.checkPermissionForExternalStorage())
                 permission.requestPermissionForExternalStorage();
             else {
@@ -163,6 +251,9 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     }
 
     private void getUserPhotos(@PHOTO_TYPE String photoType, final String after) {
+
+        swipeRefreshLayout.setRefreshing(true);
+
         AccessToken accessToken = AccessToken.getCurrentAccessToken();
         Bundle parameters = new Bundle();
         parameters.putString("fields", "id,name,images,picture,created_time,width,height");
@@ -177,18 +268,87 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
                 Log.d("hasBrain", "Graph response " + response.toString());
                 FacebookPhotoResponse facebookPhotoResponse = gson
                         .fromJson(response.getRawResponse(), FacebookPhotoResponse.class);
-                displayPhotos(facebookPhotoResponse.getData());
+
+                list = facebookPhotoResponse.getData();
+                strAfter = facebookPhotoResponse.getAfter();
+                displayPhotos(list);
+
             }
         });
         graphRequest.executeAsync();
+
+        //TODO: Bug 2
+        swipeRefreshLayout.setRefreshing(false);
     }
 
     private void displayPhotos(List<FacebookImage> data) {
-        rvPhotos.setAdapter(new FacebookImageAdapter(getLayoutInflater(), Picasso.with(this), data));
+        adapter = new FacebookImageAdapter(getLayoutInflater(), Picasso.with(this), data);
+        rvPhotos.setAdapter(adapter);
     }
 
     @StringDef({TYPE_UPLOADED, TYPE_TAGGED})
     public @interface PHOTO_TYPE {
+
+    }
+
+    public void scroll(final LinearLayoutManager manager) {
+
+        rvPhotos.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                super.onScrollStateChanged(recyclerView, newState);
+
+                if (newState == AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL) {
+                    loading = true;
+                }
+            }
+
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+
+                visibleItemCount = manager.getChildCount();
+                totalItemCount = manager.getItemCount();
+                fistVisibleItem = manager.findFirstVisibleItemPosition();
+
+                if (fistVisibleItem == 0) { // Pull to refresh
+                    swipeRefreshLayout.setEnabled(true);
+                    swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+                        @Override
+                        public void onRefresh() {
+                            swipeRefreshLayout.setRefreshing(true);
+
+                            new Handler().postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    //Load data
+                                    getUserPhotos(TYPE_UPLOADED, null);
+                                }
+                            }, 3000);
+
+                        }
+                    });
+                } else { // Scroll content
+                    swipeRefreshLayout.setEnabled(false);
+                }
+
+                if (loading && (visibleItemCount + fistVisibleItem) == totalItemCount) { // LoadMore
+                    if (totalItemCount % 25 == 0) { // Check for condition to show LoadMore
+                        loading = false;
+                        list.add(null);
+                        adapter.notifyItemInserted(list.size());
+                        new Handler().postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                // Load more
+                                getUserPhotos(TYPE_UPLOADED, strAfter);
+
+                            }
+                        }, 3000);
+                    }
+                }
+            }
+        });
 
     }
 
@@ -210,39 +370,78 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         }
 
         public void bind(FacebookImage facebookImage) {
-            picasso.load(facebookImage.getImageUrl()).into(ivFacebookPhoto);
+            picasso.load(facebookImage.getImageUrl()).resize(1024, 1024).into(ivFacebookPhoto);
             tvImageName.setText(facebookImage.getName());
             tvImageTime.setText(facebookImage.getCreatedTime());
         }
     }
 
-    private static class FacebookImageAdapter extends RecyclerView.Adapter<FacebookImageVH> {
+    public static class ProgressVH extends RecyclerView.ViewHolder {
+        @Bind(R.id.progressBar)
+        ProgressBar progressBar;
+
+        public ProgressVH(View itemView) {
+            super(itemView);
+            ButterKnife.bind(this, itemView);
+        }
+
+        public void bind() {
+            progressBar.setIndeterminate(true);
+        }
+    }
+
+    private static class FacebookImageAdapter extends RecyclerView.Adapter {
 
         private LayoutInflater layoutInflater;
         private Picasso picasso;
         private List<FacebookImage> facebookImages;
+        private final int VIEW_ITEM = 1;
+        private final int VIEW_PROG = 0;
 
         public FacebookImageAdapter(LayoutInflater layoutInflater, Picasso picasso,
-                List<FacebookImage> facebookImages) {
+                                    List<FacebookImage> facebookImages) {
             this.layoutInflater = layoutInflater;
             this.picasso = picasso;
             this.facebookImages = facebookImages;
         }
 
         @Override
-        public FacebookImageVH onCreateViewHolder(ViewGroup parent, int viewType) {
-            View itemView = layoutInflater.inflate(R.layout.item_facebook_photo, parent, false);
-            return new FacebookImageVH(picasso, itemView);
+        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            RecyclerView.ViewHolder vh;
+
+            // Return a new holder instance
+            if (viewType == VIEW_ITEM) {
+                // Inflate the custom layout
+                View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_facebook_photo, parent, false);
+
+                vh = new FacebookImageVH(picasso, v);
+            } else {
+                // Inflate the custom layout
+                View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.progressbar_item, parent, false);
+
+                vh = new ProgressVH(v);
+            }
+
+            return vh;
         }
 
         @Override
-        public void onBindViewHolder(FacebookImageVH holder, int position) {
-            holder.bind(facebookImages.get(position));
+        public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+            if (holder instanceof FacebookImageVH) {
+                ((FacebookImageVH) holder).bind(facebookImages.get(position));
+            } else {
+                ((ProgressVH) holder).bind();
+            }
         }
 
         @Override
         public int getItemCount() {
             return facebookImages != null ? facebookImages.size() : 0;
+        }
+
+        @Override
+        public int getItemViewType(int position) {
+            return facebookImages.get(position) != null ? VIEW_ITEM : VIEW_PROG;
         }
     }
 }
