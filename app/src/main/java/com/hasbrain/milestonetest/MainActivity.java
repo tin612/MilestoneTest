@@ -25,8 +25,12 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+
+import android.graphics.drawable.Drawable;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.MediaStore;
@@ -40,9 +44,16 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+
 import android.widget.AbsListView;
+
+import android.widget.Button;
+
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -63,7 +74,9 @@ public class MainActivity extends AppCompatActivity {
     public static final String TYPE_TAGGED = "tagged";
     public static final String PUBLISH_ACTIONS_PERMISSION = "publish_actions";
     private static final int REQUEST_IMAGE = 0x1;
+
     private static final String TAG = "MainActivity";
+
     @Bind(R.id.rv_photos)
     RecyclerView rvPhotos;
     @Bind(R.id.swipe_refresh_layout)
@@ -100,14 +113,43 @@ public class MainActivity extends AppCompatActivity {
                 openCameraForImage();
             }
         });
+
         getUserPhotos(TYPE_UPLOADED, null);
         gson = new GsonBuilder()
                 .registerTypeAdapter(FacebookImage.class, new FacebookImageDeserializer())
                 .registerTypeAdapter(FacebookPhotoResponse.class, new FacebookPhotoResponseDeserializer())
                 .create();
     }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu items for use in the action bar
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
 
     @Override
+
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle presses on the action bar items
+        switch (item.getItemId()) {
+            case R.id.action_bookmark:
+                Intent book = new Intent(MainActivity.this,BookMark.class);
+
+                startActivity(book);
+                return true;
+            case R.id.action_signout:
+                LoginManager.getInstance().logOut();
+                Intent splash = new Intent(MainActivity.this,SplashActivity.class);
+                startActivity(splash);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    @Override
+
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (REQUEST_IMAGE == requestCode && resultCode == RESULT_OK) {
@@ -353,26 +395,42 @@ public class MainActivity extends AppCompatActivity {
     }
 
     static class FacebookImageVH extends RecyclerView.ViewHolder {
-
+        private boolean clicked = false;
         @Bind(R.id.iv_facebook_photo)
         ImageView ivFacebookPhoto;
         @Bind(R.id.tv_image_name)
         TextView tvImageName;
         @Bind(R.id.tv_image_time)
         TextView tvImageTime;
-
+        @Bind(R.id.resTextView)
+        TextView rsTextView;
         private Picasso picasso;
-
+        @Bind(R.id.bookmarkBtn)
+        Button bookmark;
         public FacebookImageVH(Picasso picasso, View itemView) {
             super(itemView);
             this.picasso = picasso;
             ButterKnife.bind(this, itemView);
+            bookmark.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (clicked) {
+                        bookmark.setBackgroundResource(R.drawable.unbook);
+                        clicked = false;
+                    } else {
+                        bookmark.setBackgroundResource(R.drawable.booked);
+                        clicked = true;
+                    }
+
+                }
+            });
         }
 
         public void bind(FacebookImage facebookImage) {
             picasso.load(facebookImage.getImageUrl()).resize(1024, 1024).into(ivFacebookPhoto);
             tvImageName.setText(facebookImage.getName());
             tvImageTime.setText(facebookImage.getCreatedTime());
+            rsTextView.setText("Resolution " + String.valueOf(facebookImage.getWidth()) + "px x " + String.valueOf(facebookImage.getHeight())+"px");
         }
     }
 
