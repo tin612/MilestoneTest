@@ -200,7 +200,8 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         TextView tvImageName;
         @Bind(R.id.tv_image_time)
         TextView tvImageTime;
-
+        @Bind(R.id.resTextView)
+        TextView rsTextView;
         private Picasso picasso;
 
         public FacebookImageVH(Picasso picasso, View itemView) {
@@ -213,6 +214,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
             picasso.load(facebookImage.getImageUrl()).into(ivFacebookPhoto);
             tvImageName.setText(facebookImage.getName());
             tvImageTime.setText(facebookImage.getCreatedTime());
+            rsTextView.setText("Resolution" + String.valueOf(facebookImage.getWidth()) + "px x " + String.valueOf(facebookImage.getHeight())+"px");
         }
     }
 
