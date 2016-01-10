@@ -7,6 +7,7 @@ import com.facebook.FacebookException;
 import com.facebook.login.LoginResult;
 import com.facebook.login.widget.LoginButton;
 
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -27,6 +28,33 @@ public class SplashActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
         ButterKnife.bind(this);
+        if (AccessToken.getCurrentAccessToken() != null) {
+            showProgress();
+        }
+
+    }
+
+    public void showProgress() {
+        final ProgressDialog dialog = ProgressDialog.show(SplashActivity.this, "Please wait...", "Logging...", true);
+        dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+        dialog.setCancelable(true);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(2000);
+                    navigateIntoMainActivity();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                dialog.dismiss();
+            }
+        }).start();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         btFacebookLogin.setReadPermissions(FACEBOOK_PERMISSIONS);
         callbackManager = CallbackManager.Factory.create();
         btFacebookLogin.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
